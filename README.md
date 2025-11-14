@@ -3,6 +3,11 @@
 Este proyecto consiste en la simulación de un entorno **IoT** utilizando **Wokwi**, donde un microcontrolador envía datos de sensores hacia una base de datos **InfluxDB**.  
 Luego, los datos se visualizan en tiempo real mediante **Grafana**, todo orquestado con **Docker Compose**.
 
+Proyecto realizado por:
+
+- Antonio Vergara Moya
+- Youssef Bouaouiouich Souidi 
+
 ---
 
 ## 📦 Componentes del Proyecto
