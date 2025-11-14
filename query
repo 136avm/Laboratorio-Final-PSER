@@ -1,0 +1,13 @@
+from(bucket: "pser_umu_bucket")
+  |> range(start: -100y)
+  |> filter(fn: (r) =>
+    r._measurement == "iot" and
+    (r._field == "temp" or r._field == "hum" or r._field == "luz")
+  )
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> keep(columns: ["_time", "temp", "hum", "luz"])
+  |> rename(columns: {
+      temp: "Temperatura ºC",
+      hum: "Humedad %",
+      luz: "Luz %"
+  })
