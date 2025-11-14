@@ -99,3 +99,27 @@ from(bucket: "pser_umu_bucket")
       luz: "Luz %"
   })
 ```
+
+---
+
+## 💡 ACLARACIONES
+
+Para la correcta **persistencia** de los datos de InfluxDB, una vez ejecutado por primera vez el `docker-compose.yml`, cuando se quiera volver a iniciar se debe comentar la siguiente línea del fichero:
+```yml
+- DOCKER_INFLUXDB_INIT_MODE=setup
+```
+
+Esta línea solo debe usarse en la **primera ejecución** de los contenedores.
+
+---
+
+## ⚠️ IMPORTANTE
+
+- Este proyecto está diseñado **exclusivamente para la práctica académica de la asignatura**, por lo que su estructura, configuraciones y credenciales en archivos como `.env` están pensadas para un **entorno controlado**.  
+- Si reutilizas el código en otros entornos, **modifica siempre las credenciales**, tokens y contraseñas por motivos de seguridad.  
+- El proyecto usa InfluxDB y Grafana mediante Docker; asegúrate de que los puertos `8086` y `3000` no estén siendo utilizados por otros servicios.  
+- La simulación de Wokwi requiere conexión a Internet para enviar datos al backend; si no se reciben mediciones en InfluxDB revisa:
+  - la URL configurada en el código de Wokwi,  
+  - la accesibilidad del backend desde fuera del contenedor,  
+  - y que la dirección IP del equipo anfitrión sea la correcta.  
+- **No se incluye ninguna licencia**, por lo que **no está permitido copiar, distribuir o reutilizar este proyecto** sin autorización expresa.
