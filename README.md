@@ -86,7 +86,7 @@ Acceder a `http://localhost:3000` con las credenciales `GRAFANA_USERNAME:GRAFANA
 - **Token**: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
 - **Default Bucket**: DOCKER_INFLUXDB_INIT_BUCKET
 
-Los valores de las variables están configurados en el fichero [.env](https://github.com/136avm/Laboratorio-Final-PSER/blob/master/.env)
+Los valores de las variables deben corresponder con los configurados en el fichero [.env](https://github.com/136avm/Laboratorio-Final-PSER/blob/master/.env)
 
 Una vez introducidos los datos de daremos a **Save & Test** y crearemos un **dashboard** con la siguiente query:
 ```Flux
