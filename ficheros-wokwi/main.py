@@ -2,42 +2,14 @@ from machine import Pin, I2C, ADC, PWM
 from ssd1306 import SSD1306_I2C
 from time import sleep, ticks_ms, ticks_diff
 import dht
-from umqtt.simple import MQTTClient
 import ujson
 
-# ===== Configuración Wi-Fi =====
 import network
-ssid = "Wokwi-GUEST"
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-wlan.connect(ssid)
-while not wlan.isconnected():
-    print("Conectando a Wi-Fi...")
-    sleep(1)
-print("Conectado:", wlan.ifconfig())
+from umqtt.simple import MQTTClient
 
-# ===== MQTT HiveMQ público =====
-mqtt_server = "broker.hivemq.com"
-client_id = "ESP32C3_1"
-client = MQTTClient(client_id, mqtt_server)
-client.connect()
-print("Conectado al broker público de HiveMQ")
-
-# ===== Funciones MQTT =====
-def mqtt_callback(topic, msg):
-    global modo_manual, motor_girando
-    try:
-        data = ujson.loads(msg)
-        if "modo" in data and data["modo"] == "toggle":
-            modo_manual = not modo_manual
-        if "motor" in data and data["motor"] == "toggle":
-            if modo_manual:
-                motor_girando = not motor_girando
-    except Exception as e:
-        print("Error procesando MQTT:", e)
-
-client.set_callback(mqtt_callback)
-client.subscribe(b"invernadero/control")
+# ===== Estado inicial =====
+motor_girando = False
+modo_manual = True  # empieza en modo manual
 
 # ===== Configuración OLED =====
 i2c = I2C(0, scl=Pin(4), sda=Pin(5), freq=400000)
@@ -59,11 +31,18 @@ def set_servo_angle(angle):
 # ===== LED =====
 led = Pin(7, Pin.OUT)
 
-# ===== Botón =====
+# ===== Botón con interrupción + pulsación larga =====
 button = Pin(9, Pin.IN, Pin.PULL_DOWN)
-button_prev = 0
+
 button_pressed_time = 0
-modo_cambiado = False
+long_press_threshold = 3000  # ms = 3 segundos
+
+def button_isr(pin):
+    global button_pressed_time
+    if button_pressed_time == 0:  # evitar rebotes
+        button_pressed_time = ticks_ms()
+
+button.irq(trigger=Pin.IRQ_RISING, handler=button_isr)
 
 # ===== Variables del servo =====
 servo_pos = 0
@@ -76,40 +55,59 @@ led_state = 0
 last_blink = ticks_ms()
 blink_interval = 500  # ms
 
-# ===== Estado motor y modo =====
-modo_manual = False
-motor_girando = False
+# ===== Variables MQTT =====
+ssid = "Wokwi-GUEST"
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect(ssid)
+while not wlan.isconnected():
+    print("Conectando a Wi-Fi...")
+    sleep(1)
+print("Conectado:", wlan.ifconfig())
 
-# ===== Última publicación MQTT =====
+mqtt_server = "broker.hivemq.com"
+client_id = "ESP32C3_1"
+client = MQTTClient(client_id, mqtt_server)
+client.connect()
+print("Conectado al broker público de HiveMQ")
+
+def mqtt_callback(topic, msg):
+    global modo_manual, motor_girando
+    try:
+        data = ujson.loads(msg)
+        if "modo" in data and data["modo"] == "toggle":
+            modo_manual = not modo_manual
+        if "motor" in data and data["motor"] == "toggle":
+            if modo_manual:
+                motor_girando = not motor_girando
+    except Exception as e:
+        print("Error procesando MQTT:", e)
+
+client.set_callback(mqtt_callback)
+client.subscribe(b"invernadero/control")
 last_mqtt = ticks_ms()
-mqtt_interval = 1000  # ms
+mqtt_interval = 2000  # ms
 
 # ===== Bucle principal =====
 while True:
     now = ticks_ms()
-    button_val = button.value()
+
+    # ===== Detección de pulsación larga/corta =====
+    if button.value() == 0 and button_pressed_time != 0:
+        press_duration = ticks_diff(now, button_pressed_time)
+
+        if press_duration < long_press_threshold:
+            motor_girando = not motor_girando
+        else:
+            modo_manual = not modo_manual
+
+        button_pressed_time = 0
 
     # ===== Revisión de mensajes MQTT =====
     try:
         client.check_msg()  # no bloqueante
     except Exception as e:
         print("Error check_msg:", e)
-
-    # ===== Gestión del botón =====
-    if button_val == 1:
-        if button_prev == 0:
-            button_pressed_time = now
-            modo_cambiado = False
-        else:
-            if not modo_cambiado and ticks_diff(now, button_pressed_time) >= 3000:
-                modo_manual = not modo_manual
-                modo_cambiado = True
-    elif button_val == 0 and button_prev == 1:
-        if modo_manual and ticks_diff(now, button_pressed_time) < 3000:
-            motor_girando = not motor_girando
-        modo_cambiado = False
-
-    button_prev = button_val
 
     # ===== Lectura sensores =====
     try:
@@ -123,7 +121,7 @@ while True:
     light_raw = ldr_adc.read()
     light_percent = 100 - (light_raw / 4095) * 100  # invertir porcentaje
 
-    # ===== Lógica automática =====
+    # ===== Lógica automática (solo si no modo manual) =====
     if not modo_manual and temp is not None:
         motor_girando = temp > 30
 
@@ -166,7 +164,7 @@ while True:
 
     oled.show()
 
-    # ===== Envío MQTT cada 1s =====
+    # ===== Envío MQTT cada 2s =====
     if ticks_diff(now, last_mqtt) >= mqtt_interval:
         data = {
             "temp": temp,
